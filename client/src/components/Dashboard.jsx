@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import Header from './Header';
 
 export default function Dashboard() {
   const [spaces, setSpaces] = useState([]);
@@ -71,7 +72,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white px-6 py-10">
+    <>
+    <div className="min-h-screen bg-[#121212] text-white pt-24">
+      <Header />
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-12">
           <h1 className="text-4xl font-bold">Hi, {user?.username} 👋</h1>
@@ -133,5 +136,6 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+    </>
   );
 }

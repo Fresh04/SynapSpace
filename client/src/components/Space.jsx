@@ -1,6 +1,8 @@
 import { useParams } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
+import Header from '../components/Header';
+import { FaPencilAlt, FaEraser, FaStickyNote, FaRobot, FaFont } from 'react-icons/fa';
 
 const socket = io(import.meta.env.VITE_BACKEND_URL);
 
@@ -9,13 +11,20 @@ export default function Space() {
   const [space, setSpace] = useState(null);
   const [drawMode, setDrawMode] = useState(false);
   const [tool, setTool] = useState('pen');
+  const [strokeColor, setStrokeColor] = useState('#ffffff');
+  const [strokeSize, setStrokeSize] = useState(2);
+  const [bgColor, setBgColor] = useState('#1e1e1e');
   const [eraserSize, setEraserSize] = useState(20);
-  const [notes, setNotes] = useState([]);
+  const [textFields, setTextFields] = useState([]);
+  const [showPenOptions, setShowPenOptions] = useState(false);
+  const [showEraserOptions, setShowEraserOptions] = useState(false);
+  const [actions, setActions] = useState([]);
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
   const isDrawing = useRef(false);
-  const drawingPath = useRef([]);
   const saveTimeout = useRef(null);
+  const eraserRef = useRef();
+  const penRef = useRef();
 
   const API_BASE = import.meta.env.VITE_BACKEND_URL;
 
@@ -25,9 +34,8 @@ export default function Space() {
         const res = await fetch(`${API_BASE}/spaces/${spaceId}`);
         const data = await res.json();
         setSpace(data);
-
-        if (data?.drawing?.length) {
-          setTimeout(() => restoreDrawing(data.drawing), 500);
+        if (data?.strokes) {
+          setActions(data.strokes);
         }
       } catch (err) {
         console.error("Failed to fetch space data", err);
@@ -35,48 +43,62 @@ export default function Space() {
     };
 
     fetchSpace();
-
     socket.emit('join-room', spaceId);
 
-    socket.on('receive-drawing', ({ x0, y0, x1, y1, tool: incomingTool, size }) => {
-      const ctx = ctxRef.current;
-      if (!ctx) return;
-      ctx.save();
-      if (incomingTool === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineWidth = size || 20;
-      } else {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = 'white';
-      }
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
-      ctx.restore();
+    socket.on('receive-drawing', (stroke) => {
+      drawStroke(stroke);
+      setActions(prev => [...prev, stroke]);
     });
 
+    const handleClickOutside = (event) => {
+      if (eraserRef.current && !eraserRef.current.contains(event.target)) {
+        setShowEraserOptions(false);
+      }
+      if (penRef.current && !penRef.current.contains(event.target)) {
+        setShowPenOptions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       socket.off('receive-drawing');
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [spaceId]);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
     const canvas = canvasRef.current;
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
-
+    canvas.width = 3000;
+    canvas.height = 2000;
     const ctx = canvas.getContext('2d');
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2;
+    // ctx.fillStyle = bgColor;
+    // ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.lineCap = 'round';
     ctxRef.current = ctx;
-  }, []);
+    actions.forEach(drawStroke);
+  }, [bgColor, actions]);
+
+  const drawStroke = ({ x0, y0, x1, y1, tool, size, color }) => {
+    const ctx = ctxRef.current;
+    ctx.save();
+    if (tool === 'eraser') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.lineWidth = size;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.restore();
+  };
+
 
   const startDrawing = (e) => {
-    if (!drawMode) return;
+    if (!drawMode || tool === 'text') return;
     isDrawing.current = true;
     const { offsetX, offsetY } = e.nativeEvent;
     ctxRef.current.beginPath();
@@ -86,167 +108,213 @@ export default function Space() {
   };
 
   const stopDrawing = () => {
-    if (!drawMode) return;
+    if (!drawMode || tool === 'text') return;
     isDrawing.current = false;
     ctxRef.current.closePath();
-    saveDrawing(drawingPath.current);
+    saveStrokes();
   };
 
   const draw = (e) => {
-    if (!drawMode || !isDrawing.current) return;
+    if (!drawMode || !isDrawing.current || tool === 'text') return;
     const { offsetX, offsetY } = e.nativeEvent;
     const { lastX, lastY } = ctxRef.current;
 
-    if (tool === 'eraser') {
-      ctxRef.current.globalCompositeOperation = 'destination-out';
-      ctxRef.current.lineWidth = eraserSize;
-    } else {
-      ctxRef.current.globalCompositeOperation = 'source-over';
-      ctxRef.current.lineWidth = 2;
-      ctxRef.current.strokeStyle = 'white';
-    }
-
-    ctxRef.current.lineTo(offsetX, offsetY);
-    ctxRef.current.stroke();
-
-    socket.emit('drawing-data', {
-      spaceId,
-      data: {
-        x0: lastX,
-        y0: lastY,
-        x1: offsetX,
-        y1: offsetY,
-        tool,
-        size: tool === 'eraser' ? eraserSize : undefined,
-      },
-    });
-
-    drawingPath.current.push({
+    const stroke = {
       x0: lastX,
       y0: lastY,
       x1: offsetX,
       y1: offsetY,
       tool,
-      size: tool === 'eraser' ? eraserSize : 2,
-    });
+      size: tool === 'eraser' ? eraserSize : strokeSize,
+      color: strokeColor,
+    };
 
+    drawStroke(stroke);
+    socket.emit('drawing-data', { spaceId, data: stroke });
+    setActions(prev => [...prev, stroke]);
 
     ctxRef.current.lastX = offsetX;
     ctxRef.current.lastY = offsetY;
   };
 
-  const saveDrawing = async (drawingData) => {
+  const saveStrokes = async () => {
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
-
     saveTimeout.current = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE}/spaces/${spaceId}/save-drawing`, {
+        const res = await fetch(`${API_BASE}/spaces/${spaceId}/save-strokes`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ drawing: drawingData }),
+          body: JSON.stringify({ strokes: actions }),
         });
-        if (!res.ok) throw new Error('Failed to save drawing');
+        if (!res.ok) throw new Error('Failed to save strokes');
       } catch (err) {
-        console.error('Saving drawing failed:', err);
+        console.error('Saving strokes failed:', err);
       }
     }, 500);
   };
 
-  const restoreDrawing = (drawingData) => {
-    const ctx = ctxRef.current;
-    if (!ctx || !Array.isArray(drawingData)) return;
-    for (const { x0, y0, x1, y1, tool, size } of drawingData) {
-    ctx.save();
-    if (tool === 'eraser') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = size || 20;
-    } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'white';
+  const handleCanvasClick = (e) => {
+    if (tool === 'text') {
+      const { offsetX, offsetY } = e.nativeEvent;
+      const newTextField = {
+        id: Date.now(),
+        x: offsetX,
+        y: offsetY,
+        text: '',
+        editing: true
+      };
+      setTextFields(prev => [...prev, newTextField]);
     }
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
-    ctx.restore();
-  }
+  };
 
-    drawingPath.current = drawingData;
+  const updateTextField = (id, newText) => {
+    setTextFields(prev =>
+      prev.map(field =>
+        field.id === id ? { ...field, text: newText } : field
+      )
+    );
+  };
+
+  const finalizeTextField = (id) => {
+    setTextFields(prev =>
+      prev.map(field =>
+        field.id === id ? { ...field, editing: false } : field
+      )
+    );
   };
 
   return (
-    <div className="min-h-screen bg-[#121212] text-white p-4">
-      <h1 className="text-3xl font-bold mb-4">
-        {space ? `Workspace: ${space.name}` : 'Loading...'}
-      </h1>
-
-      <div className="flex gap-4">
-        <div className="w-3/4 h-[80vh] bg-[#1e1e1e] rounded-xl border border-gray-700 relative overflow-hidden">
-          <canvas
-            ref={canvasRef}
-            className="absolute top-0 left-0 w-full h-full"
-            onMouseDown={startDrawing}
-            onMouseUp={stopDrawing}
-            onMouseMove={draw}
-          />
+    <div className="min-h-screen bg-[#121212] text-white pt-24">
+      <Header />
+      <div className="p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-3xl font-bold">
+            {space ? `Workspace: ${space.name}` : 'Loading...'}
+          </h1>
+          <div className="flex items-center gap-2">
+            <span>Canvas:</span>
+            <input
+              type="color"
+              value={bgColor}
+              onChange={(e) => setBgColor(e.target.value)}
+              title="Background Color"
+              className="w-8 h-8 cursor-pointer"
+            />
+          </div>
         </div>
 
-        <div className="w-1/4 p-4 bg-[#1a1a1a] rounded-xl border border-gray-700">
-          <h2 className="text-xl font-semibold mb-4">Tools</h2>
-          <ul className="space-y-3">
-            <li>
+        <div className="flex gap-4">
+          <div className="flex flex-col items-center gap-4 bg-[#1a1a1a] p-4 rounded-xl border border-gray-700">
+            <button onClick={() => alert('Sticky Note - coming soon')} className="hover:text-[#00ffff]">
+              <FaStickyNote size={24} />
+            </button>
+
+            <div className="relative" ref={eraserRef}>
               <button
-                className="w-full bg-yellow-300 text-black px-4 py-2 rounded"
-                onClick={() => alert('Sticky Note - coming soon')}
-              >
-                Sticky Note
-              </button>
-            </li>
-            <li className="relative">
-              <button
-                className={`w-full px-4 py-2 rounded ${tool === 'eraser' ? 'bg-green-400 text-black' : 'bg-[#00ffff] text-black'}`}
                 onClick={() => {
                   setTool('eraser');
                   setDrawMode(true);
+                  setShowEraserOptions(prev => !prev);
                 }}
+                className={`hover:text-[#00ffff] ${tool === 'eraser' ? 'text-green-400' : ''}`}
               >
-                Eraser
+                <FaEraser size={24} />
               </button>
-              {tool === 'eraser' && (
-                <select
-                  value={eraserSize}
-                  onChange={(e) => setEraserSize(parseInt(e.target.value))}
-                  className="absolute left-0 mt-2 bg-white text-black border border-gray-500 rounded px-2 py-1 text-sm shadow"
-                >
-                  <option value={10}>10px</option>
-                  <option value={20}>20px</option>
-                  <option value={30}>30px</option>
-                  <option value={40}>40px</option>
-                  <option value={50}>50px</option>
-                </select>
+              {showEraserOptions && (
+                <div className="absolute left-10 top-0 bg-[#2a2a2a] p-3 rounded-xl border border-gray-600 shadow-xl z-10 w-40 space-y-2">
+                  <label className="block text-xs mb-1">Eraser Size</label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="100"
+                    value={eraserSize}
+                    onChange={(e) => setEraserSize(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
               )}
-            </li>
-            <li>
+            </div>
+
+            <div className="relative" ref={penRef}>
               <button
-                className={`w-full px-4 py-2 rounded ${drawMode && tool === 'pen' ? 'bg-green-400 text-black' : 'bg-[#00ffff] text-black'}`}
                 onClick={() => {
                   setTool('pen');
                   setDrawMode(true);
+                  setShowPenOptions(prev => !prev);
                 }}
+                className={`hover:text-[#00ffff] ${tool === 'pen' ? 'text-green-400' : ''}`}
               >
-                {drawMode && tool === 'pen' ? 'Drawing Mode On' : 'Draw'}
+                <FaPencilAlt size={24} />
               </button>
-            </li>
-            <li>
-              <button
-                className="w-full bg-gray-600 text-white px-4 py-2 rounded cursor-not-allowed"
-                disabled
-              >
-                Ask AI (disabled)
-              </button>
-            </li>
-          </ul>
+              {showPenOptions && (
+                <div className="absolute left-10 top-0 bg-[#2a2a2a] p-3 rounded-xl border border-gray-600 shadow-xl z-10 w-40 space-y-2">
+                  <label className="block text-xs mb-1">Stroke Color</label>
+                  <input type="color" value={strokeColor} onChange={(e) => setStrokeColor(e.target.value)} className="w-full" />
+                  <label className="block text-xs mt-2 mb-1">Stroke Size</label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    value={strokeSize}
+                    onChange={(e) => setStrokeSize(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                setTool('text');
+                setDrawMode(false);
+              }}
+              className={`hover:text-[#00ffff] ${tool === 'text' ? 'text-green-400' : ''}`}
+            >
+              <FaFont size={24} />
+            </button>
+          </div>
+
+          <div className="w-3/4 h-[80vh] overflow-hidden bg-gray-800 rounded-xl border border-gray-700 relative">
+            <div className="overflow-scroll w-full h-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <canvas
+                ref={canvasRef}
+                className="w-[3000px] h-[2000px]"
+                onMouseDown={startDrawing}
+                onMouseUp={stopDrawing}
+                onMouseMove={draw}
+                onClick={handleCanvasClick}
+              />
+              {textFields.map((field) =>
+                field.editing ? (
+                  <textarea
+                    key={field.id}
+                    style={{ position: 'absolute', top: field.y, left: field.x, color: 'black' }}
+                    className="absolute bg-white text-black p-1 rounded"
+                    value={field.text}
+                    onChange={(e) => updateTextField(field.id, e.target.value)}
+                    onBlur={() => finalizeTextField(field.id)}
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    key={field.id}
+                    style={{ position: 'absolute', top: field.y, left: field.x }}
+                    className="absolute text-white cursor-pointer"
+                    onClick={() => setTextFields(prev => prev.map(tf => tf.id === field.id ? { ...tf, editing: true } : tf))}
+                  >
+                    {field.text}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          <div className="w-1/4 p-4 bg-[#1a1a1a] rounded-xl border border-gray-700">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <FaRobot /> AI Panel (coming soon)
+            </h2>
+            <p className="text-gray-400 text-sm">Smart suggestions and chat will appear here.</p>
+          </div>
         </div>
       </div>
     </div>
