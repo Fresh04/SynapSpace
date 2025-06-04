@@ -27,11 +27,13 @@ app.use(express.json());
 const loginRoute = require('./routes/login');
 const registerRoute = require('./routes/register');
 const changePasswordRoute = require('./routes/changepassword');
+const spaceRoute = require('./routes/spaces');
 
 // app.use('/access', accessRoute);
 app.use('/login', loginRoute);
 app.use('/register', registerRoute);
 app.use('/changepassword', changePasswordRoute);
+app.use('/spaces', spaceRoute);
 
 connectMongoDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
