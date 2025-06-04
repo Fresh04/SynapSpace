@@ -4,6 +4,7 @@ import io from 'socket.io-client';
 import Header from '../components/Header';
 import { Rnd } from "react-rnd";
 import { FaPencilAlt, FaEraser, FaStickyNote, FaRobot, FaFont } from 'react-icons/fa';
+import jsPDF from 'jspdf';
 
 const socket = io(import.meta.env.VITE_BACKEND_URL);
 
@@ -20,6 +21,7 @@ export default function Space() {
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showEraserOptions, setShowEraserOptions] = useState(false);
   const [remoteCursors, setRemoteCursors] = useState({});
+  const [undoStack, setUndoStack] = useState([]);
   const [actions, setActions] = useState([]);
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
@@ -117,6 +119,25 @@ export default function Space() {
     }, 5000);
   });
   }, []);
+
+  const handleUndo = () => {
+    if (actions.length === 0) return;
+    const last = actions[actions.length - 1];
+    setActions(prev => prev.slice(0, -1));
+    setUndoStack(prev => [...prev, last]);
+  };
+  const handleClearCanvas = () => {
+    setActions([]);
+    setUndoStack([]);
+  };
+
+  const handleRedo = () => {
+    if (undoStack.length === 0) return;
+    const last = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    setActions(prev => [...prev, last]);
+  };
+
 
   const drawStroke = (stroke) => {
     const ctx = ctxRef.current;
@@ -224,6 +245,20 @@ export default function Space() {
     }
   };
 
+  const handleExportPDF = () => {
+    const canvas = canvasRef.current;
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('l', 'pt', [canvas.width, canvas.height]);
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+    pdf.save('whiteboard.pdf');
+  };
+  const handleExportPNG = () => {
+    const link = document.createElement('a');
+    link.download = 'whiteboard.png';
+    link.href = canvasRef.current.toDataURL();
+    link.click();
+  };
+
   const updateTextField = (id, newText) => {
     setTextFields(prev =>
       prev.map(field =>
@@ -263,6 +298,14 @@ export default function Space() {
           <h1 className="text-3xl font-bold">
             {space ? `Workspace: ${space.name}  |  Code: ${space.code}` : 'Loading...'}
           </h1>
+         <div className="flex flex-wrap gap-3 mb-4">
+          <button onClick={handleUndo} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-600">Undo</button>
+          <button onClick={handleRedo} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-600">Redo</button>
+          <button onClick={handleClearCanvas} className="bg-red-600 px-4 py-2 rounded hover:bg-red-700 text-white">Clear</button>
+          <button onClick={handleExportPNG} className="bg-blue-500 px-4 py-2 rounded hover:bg-blue-600 text-white">Export PNG</button>
+          <button onClick={handleExportPDF} className="bg-purple-500 px-4 py-2 rounded hover:bg-purple-600 text-white">Export PDF</button>
+        </div>
+
           <div className="flex items-center gap-2">
             <span>Canvas:</span>
             <input
@@ -277,7 +320,7 @@ export default function Space() {
 
         <div className="flex gap-4">
           <div className="flex flex-col items-center gap-4 bg-[#1a1a1a] p-4 rounded-xl border border-gray-700">
-            <button onClick={() => alert('Sticky Note - coming soon')} className="hover:text-[#00ffff]">
+            <button onClick={() => alert('Sticky Note - (TBD)')} className="hover:text-[#00ffff]">
               <FaStickyNote size={24} />
             </button>
 
@@ -444,9 +487,9 @@ export default function Space() {
 
           <div className="w-1/4 p-4 bg-[#1a1a1a] rounded-xl border border-gray-700">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <FaRobot /> AI Panel (coming soon)
+              <FaRobot /> AI Panel
             </h2>
-            <p className="text-gray-400 text-sm">Smart suggestions and chat will appear here.</p>
+            <p className="text-gray-400 text-sm">To be Implemented</p>
           </div>
         </div>
 
