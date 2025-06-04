@@ -2,6 +2,7 @@ import { useParams } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
 import Header from '../components/Header';
+import { Rnd } from "react-rnd";
 import { FaPencilAlt, FaEraser, FaStickyNote, FaRobot, FaFont } from 'react-icons/fa';
 
 const socket = io(import.meta.env.VITE_BACKEND_URL);
@@ -18,6 +19,7 @@ export default function Space() {
   const [textFields, setTextFields] = useState([]);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showEraserOptions, setShowEraserOptions] = useState(false);
+  const [remoteCursors, setRemoteCursors] = useState({});
   const [actions, setActions] = useState([]);
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
@@ -25,8 +27,10 @@ export default function Space() {
   const saveTimeout = useRef(null);
   const eraserRef = useRef();
   const penRef = useRef();
-
+  const userColors = useRef({});
   const API_BASE = import.meta.env.VITE_BACKEND_URL;
+  const CURSOR_COLORS = ['#FFB6C1','#ADD8E6','#90EE90','#FFDAB9','#E6E6FA','#FFE4E1','#FFFACD','#D3FFCE','#F0E68C','#E0FFFF'];
+
 
   useEffect(() => {
     const fetchSpace = async () => {
@@ -86,24 +90,55 @@ export default function Space() {
     ctxRef.current = ctx;
     actions.forEach(drawStroke);
   }, [bgColor, actions]);
+  
+  useEffect(() => {
+    socket.on('receive-cursor', ({ userId, username, x, y }) => {
+    if (!userColors.current[userId]) {
+      const usedColors = Object.values(userColors.current);
+      const availableColors = CURSOR_COLORS.filter(c => !usedColors.includes(c));
+      const randomColor = availableColors.length > 0
+        ? availableColors[Math.floor(Math.random() * availableColors.length)]
+        : CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)];
 
-  const drawStroke = ({ x0, y0, x1, y1, tool, size, color }) => {
+      userColors.current[userId] = randomColor;
+    }
+
+    setRemoteCursors(prev => ({
+      ...prev,
+      [userId]: { x, y, username }
+    }));
+
+    setTimeout(() => {
+      setRemoteCursors(prev => {
+        const updated = { ...prev };
+        delete updated[userId];
+        return updated;
+      });
+    }, 5000);
+  });
+  }, []);
+
+  const drawStroke = (stroke) => {
     const ctx = ctxRef.current;
     ctx.save();
-    if (tool === 'eraser') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = size;
+
+    if (stroke.type === 'text') {
+      ctx.font = `${stroke.fontSize || 20}px ${stroke.font || 'Comic Sans MS'}`;
+      ctx.fillStyle = stroke.color || '#ffffff';
+      ctx.textBaseline = 'top'; 
+      ctx.fillText(stroke.text, stroke.x, stroke.y);
     } else {
+      const { x0, y0, x1, y1, tool, size, color } = stroke;
       ctx.globalCompositeOperation = 'source-over';
       ctx.lineWidth = size;
-      ctx.strokeStyle = color;
+      ctx.strokeStyle = tool === 'pen' ? color : bgColor;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
     }
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
+
     ctx.restore();
-    
   };
 
   const startDrawing = (e) => {
@@ -144,6 +179,14 @@ export default function Space() {
 
     ctxRef.current.lastX = offsetX;
     ctxRef.current.lastY = offsetY;
+    const user = JSON.parse(localStorage.getItem('user'));
+    socket.emit('cursor-move', {
+      spaceId,
+      userId: user._id,
+      username: user.username,
+      x: offsetX,
+      y: offsetY,
+    });
   };
 
   const saveStrokes = async () => {
@@ -165,13 +208,18 @@ export default function Space() {
   const handleCanvasClick = (e) => {
     if (tool === 'text') {
       const { offsetX, offsetY } = e.nativeEvent;
+
       const newTextField = {
         id: Date.now(),
         x: offsetX,
         y: offsetY,
-        text: '',
-        editing: true
+        width: 200,
+        height: 50,
+        text: 'Text here',
+        editing: true,
+        font: 'Comic Sans MS',
       };
+
       setTextFields(prev => [...prev, newTextField]);
     }
   };
@@ -190,7 +238,22 @@ export default function Space() {
         field.id === id ? { ...field, editing: false } : field
       )
     );
+
+    const finalizedField = textFields.find(f => f.id === id);
+    if (finalizedField) {
+      const textAction = {
+        type: 'text',
+        x: finalizedField.x,
+        y: finalizedField.y,
+        text: finalizedField.text,
+        font: finalizedField.font || 'Comic Sans MS',
+        fontSize: 20,
+        color: '#ffffff',
+      };
+      setActions(prev => [...prev, textAction]);
+    }
   };
+
 
   return (
     <div className="min-h-screen bg-[#121212] text-white pt-24">
@@ -288,33 +351,94 @@ export default function Space() {
               <canvas
                 ref={canvasRef}
                 className="w-[3000px] h-[2000px]"
+                style={{
+                  cursor: drawMode ? 'crosshair' : 'default'
+                }}
                 onMouseDown={startDrawing}
                 onMouseUp={stopDrawing}
                 onMouseMove={draw}
                 onClick={handleCanvasClick}
               />
-              {textFields.map((field) =>
-                field.editing ? (
-                  <textarea
-                    key={field.id}
-                    style={{ position: 'absolute', top: field.y, left: field.x, color: 'black' }}
-                    className="absolute bg-white text-black p-1 rounded"
-                    value={field.text}
-                    onChange={(e) => updateTextField(field.id, e.target.value)}
-                    onBlur={() => finalizeTextField(field.id)}
-                    autoFocus
-                  />
-                ) : (
+              {Object.entries(remoteCursors).map(([id, cursor]) => (
+                <div
+                  key={id}
+                  className="absolute text-xs text-white pointer-events-none"
+                  style={{
+                    top: cursor.y,
+                    left: cursor.x,
+                    transform: 'translate(-50%, -50%)',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
                   <div
-                    key={field.id}
-                    style={{ position: 'absolute', top: field.y, left: field.x }}
-                    className="absolute text-white cursor-pointer"
-                    onClick={() => setTextFields(prev => prev.map(tf => tf.id === field.id ? { ...tf, editing: true } : tf))}
-                  >
-                    {field.text}
-                  </div>
-                )
-              )}
+                    className="w-3 h-3 rounded-full mb-1"
+                    style={{ backgroundColor: userColors.current[id] || '#ccc' }}
+                  ></div>
+                  <span className = "bg-red">{cursor.username}</span>
+                </div>
+              ))}
+
+              {textFields.map((field) => (
+                <Rnd
+                  key={field.id}
+                  size={{ width: field.width, height: field.height }}
+                  position={{ x: field.x, y: field.y }}
+                  onDragStop={(e, d) => {
+                    setTextFields(prev =>
+                      prev.map(f => f.id === field.id ? { ...f, x: d.x, y: d.y } : f)
+                    );
+                  }}
+                  onResizeStop={(e, direction, ref, delta, position) => {
+                    setTextFields(prev =>
+                      prev.map(f =>
+                        f.id === field.id
+                          ? {
+                              ...f,
+                              width: parseInt(ref.style.width),
+                              height: parseInt(ref.style.height),
+                              x: position.x,
+                              y: position.y,
+                            }
+                          : f
+                      )
+                    );
+                  }}
+                  bounds="parent"
+                >
+                  {field.editing ? (
+                    <textarea
+                      value={field.text}
+                      autoFocus
+                      onChange={(e) =>
+                        updateTextField(field.id, e.target.value)
+                      }
+                      onBlur={() => finalizeTextField(field.id)}
+                      className="w-full h-full resize-none p-1 rounded bg-white text-black font-[Comic_Sans_MS] outline-none"
+                      style={{
+                        fontFamily: 'Comic Sans MS',
+                        fontSize: '20px',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full p-1 cursor-move text-white rounded"
+                      onDoubleClick={() =>
+                        setTextFields(prev =>
+                          prev.map(f => f.id === field.id ? { ...f, editing: true } : f)
+                        )
+                      }
+                      style={{
+                        fontFamily: 'Comic Sans MS',
+                        fontSize: '20px',
+                        overflow: 'hidden',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {field.text}
+                    </div>
+                  )}
+                </Rnd>
+              ))}
             </div>
           </div>
 
