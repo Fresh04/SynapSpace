@@ -19,6 +19,19 @@ router.post('/create', async (req, res) => {
   const result = await spaces.create(newSpace);
   res.json({ success: true, spaceId: result.insertedId, code: newSpace.code });
 });
+router.post('/:spaceId/save-drawing', async (req, res) => {
+  const { spaceId } = req.params;
+  const { drawing } = req.body;
+
+  try {
+    const spaces = createSpaceModel(global.db);
+    await spaces.updateDrawing(spaceId, drawing);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving drawing:', err);
+    res.status(500).json({ success: false, message: 'Failed to save drawing' });
+  }
+});
 
 router.get('/:spaceId', async (req, res) => {
   const { spaceId } = req.params;

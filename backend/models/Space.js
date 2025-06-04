@@ -20,6 +20,16 @@ function createSpaceModel(db) {
         { $addToSet: { members: userId } }
       );
     },
+    updateDrawing: async (spaceId, drawingData) => {
+      return await db.collection('spaces').updateOne(
+        { _id: new ObjectId(spaceId) },
+        { $set: { drawing: drawingData } }
+      );
+    },
+    getDrawing: async (spaceId) => {
+      const space = await db.collection('spaces').findOne({ _id: new ObjectId(spaceId) });
+      return space?.drawing || null;
+    }
   };
 }
 
