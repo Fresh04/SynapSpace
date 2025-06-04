@@ -11,8 +11,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) navigate('/login');
     setSpaces([
-      { id: '123abc', name: 'Marketing Plan Q3' },
-      { id: '456def', name: 'Product Roadmap' },
+      { id: '123abc', name: 'Sample1' },
+      { id: '456def', name: 'Sample2' },
     ]);
   }, []);
 
@@ -30,8 +30,6 @@ export default function Dashboard() {
       <div className="pt-24 min-h-screen bg-[#1a1a1a] text-white px-6 py-10">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl font-bold mb-12">Hi, {user?.username} 👋</h1>
-
-          {/* Create New Space */}
           <div className="mb-10">
             <h2 className="text-2xl font-semibold mb-4">Create a New Space</h2>
             <button onClick={handleCreateSpace} className="bg-[#00ffff] text-black text-lg font-semibold px-6 py-4 rounded-xl hover:bg-[#1ff] transition">
@@ -39,7 +37,6 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Previous Spaces */}
           <div className="mb-10">
             <h2 className="text-2xl font-semibold mb-4">Your Previous Spaces</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -52,7 +49,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Join Space */}
           <div>
             <h2 className="text-2xl font-semibold mb-4">Join a Space</h2>
             <div className="flex flex-col sm:flex-row gap-4">

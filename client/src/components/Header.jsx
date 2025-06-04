@@ -24,28 +24,16 @@ export default function Header() {
 
       {user && (
         <nav className="flex gap-4">
-          <Link
-            to="/"
-            className="px-4 py-2 hover:bg-[#333] rounded-lg transition"
-          >
+          <Link to="/" className="px-4 py-2 hover:bg-[#333] rounded-lg transition">
             Home
           </Link>
-          <Link
-            to="/dashboard"
-            className="px-4 py-2 hover:bg-[#333] rounded-lg transition"
-          >
-            Dashboard
+          <Link to="/dashboard" className="px-4 py-2 hover:bg-[#333] rounded-lg transition"> 
+            Dashboard 
           </Link>
-          <Link
-            to="/changepassword"
-            className="px-4 py-2 hover:bg-[#333] rounded-lg transition"
-          >
+          <Link to="/changepassword" className="px-4 py-2 hover:bg-[#333] rounded-lg transition">
             Change Password
           </Link>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 text-red-400 hover:bg-[#333] rounded-lg transition"
-          >
+          <button onClick={handleLogout} className="px-4 py-2 text-red-400 hover:bg-[#333] rounded-lg transition">
             Logout
           </button>
         </nav>
