@@ -37,8 +37,6 @@ export default function Space() {
         if (data?.strokes) {
           setActions(data.strokes);
         }
-
-        // Join space (if userId available)
         const user = JSON.parse(localStorage.getItem('user'));
         if (user && user._id && !data.members.includes(user._id)) {
           await fetch(`${API_BASE}/spaces/join`, {
@@ -105,6 +103,7 @@ export default function Space() {
     ctx.lineTo(x1, y1);
     ctx.stroke();
     ctx.restore();
+    
   };
 
   const startDrawing = (e) => {

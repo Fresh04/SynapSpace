@@ -35,6 +35,9 @@ function createSpaceModel(db) {
       const space = await collection.findOne({ _id: new ObjectId(spaceId) });
       return space?.strokes || [];
     },
+    deleteById: async (id) => {
+      return await db.collection('spaces').deleteOne({ _id: new ObjectId(id) });
+    },
   };
 }
 

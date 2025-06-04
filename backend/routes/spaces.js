@@ -72,4 +72,21 @@ router.get('/myspaces/:userId', async (req, res) => {
   res.json(list);
 });
 
+router.delete('/:spaceId', async (req, res) => {
+  const { spaceId } = req.params;
+  const spaces = createSpaceModel(global.db);
+
+  try {
+    const result = await spaces.deleteById(spaceId);
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'Space not found or already deleted' });
+    }
+    res.json({ success: true, message: 'Space deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting space:', err);
+    res.status(500).json({ message: 'Failed to delete space' });
+  }
+});
+
+
 module.exports = router;

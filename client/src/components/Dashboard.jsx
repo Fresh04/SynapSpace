@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Header from './Header';
+import { FaTrash } from 'react-icons/fa';
 
 export default function Dashboard() {
   const [spaces, setSpaces] = useState([]);
@@ -70,6 +71,23 @@ export default function Dashboard() {
       console.error("Failed to join space", err);
     }
   };
+  const handleDeleteSpace = async (spaceId) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this space?");
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/spaces/${spaceId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error("Failed to delete space");
+
+      setSpaces(prev => prev.filter(space => space._id !== spaceId));
+    } catch (err) {
+      console.error("Error deleting space:", err);
+      alert("Could not delete space.");
+    }
+  };
+
 
   return (
     <>
@@ -105,12 +123,27 @@ export default function Dashboard() {
               {spaces.map((space) => (
                 <div
                   key={space._id}
-                  className="bg-[#2a2a2a] p-6 rounded-xl cursor-pointer hover:bg-[#333] transition"
+                  className="bg-[#2a2a2a] p-6 rounded-xl relative hover:bg-[#333] transition cursor-pointer"
                   onClick={() => navigate(`/space/${space._id}`)}
                 >
-                  <h3 className="text-xl font-bold">{space.name}</h3>
-                  <p className="text-sm text-gray-400 mt-1">Code: {space.code}</p>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-xl font-bold">{space.name}</h3>
+                      <p className="text-sm text-gray-400 mt-1">Code: {space.code}</p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteSpace(space._id);
+                      }}
+                      className="text-red-500 hover:text-red-700"
+                      title="Delete Space"
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
                 </div>
+
               ))}
             </div>
           )}
