@@ -16,7 +16,7 @@ export default function Register() {
         password: form.password,
       });
       localStorage.setItem('user', JSON.stringify(loginRes.data.user));
-      alert('Registered and logged in successfully!');
+      // alert('Registered and logged in successfully!');
       navigate('/dashboard');
     } catch (err) {
       alert(err.response?.data?.message || 'Registration/Login failed');

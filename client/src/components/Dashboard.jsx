@@ -28,10 +28,10 @@ export default function Dashboard() {
     fetchSpaces();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
+  // const handleLogout = () => {
+  //   localStorage.removeItem('user');
+  //   navigate('/');
+  // };
 
   const handleCreateSpace = async () => {
     const name = prompt("Enter space name:");
@@ -78,12 +78,12 @@ export default function Dashboard() {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-12">
           <h1 className="text-4xl font-bold">Hi, {user?.username} 👋</h1>
-          <button
+          {/* <button
             onClick={handleLogout}
             className="bg-red-600 text-white px-5 py-2 rounded-lg hover:bg-red-700"
           >
             Logout
-          </button>
+          </button> */}
         </div>
 
         <div className="mb-10">
@@ -116,24 +116,28 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">Join a Space</h2>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <input
-              type="text"
-              placeholder="Enter space code..."
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-              className="w-full sm:w-96 px-4 py-3 text-black rounded-lg"
-            />
-            <button
-              onClick={handleJoinSpace}
-              className="bg-[#00ffff] text-black font-semibold px-6 py-3 rounded-lg hover:bg-[#1ff] transition"
-            >
-              Join
-            </button>
+        <div className="flex items-center justify-center min-h-[30vh]">
+          <div className="bg-[#1a1a1a] p-6 rounded-xl shadow-lg border border-gray-700 w-full max-w-2xl text-center">
+            <h2 className="text-2xl font-bold text-white mb-6">🔗 Join a Space</h2>
+
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+              <input
+                type="text"
+                placeholder="Enter space code..."
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                className="w-full sm:w-96 px-4 py-3 rounded-lg bg-[#2a2a2a] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00ffff] transition"
+              />
+              <button
+                onClick={handleJoinSpace}
+                className="bg-[#00ffff] text-black font-semibold px-6 py-3 rounded-lg hover:bg-[#1ff] transition"
+              >
+                Join
+              </button>
+            </div>
           </div>
         </div>
+
       </div>
     </div>
     </>

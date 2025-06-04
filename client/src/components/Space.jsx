@@ -37,6 +37,16 @@ export default function Space() {
         if (data?.strokes) {
           setActions(data.strokes);
         }
+
+        // Join space (if userId available)
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user && user._id && !data.members.includes(user._id)) {
+          await fetch(`${API_BASE}/spaces/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: data.code, userId: user._id })
+          });
+        }
       } catch (err) {
         console.error("Failed to fetch space data", err);
       }
@@ -71,8 +81,9 @@ export default function Space() {
     canvas.width = 3000;
     canvas.height = 2000;
     const ctx = canvas.getContext('2d');
-    // ctx.fillStyle = bgColor;
-    // ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.lineCap = 'round';
     ctxRef.current = ctx;
     actions.forEach(drawStroke);
@@ -86,8 +97,8 @@ export default function Space() {
       ctx.lineWidth = size;
     } else {
       ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = color;
       ctx.lineWidth = size;
+      ctx.strokeStyle = color;
     }
     ctx.beginPath();
     ctx.moveTo(x0, y0);
@@ -95,7 +106,6 @@ export default function Space() {
     ctx.stroke();
     ctx.restore();
   };
-
 
   const startDrawing = (e) => {
     if (!drawMode || tool === 'text') return;
@@ -189,7 +199,7 @@ export default function Space() {
       <div className="p-4">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-3xl font-bold">
-            {space ? `Workspace: ${space.name}` : 'Loading...'}
+            {space ? `Workspace: ${space.name}  |  Code: ${space.code}` : 'Loading...'}
           </h1>
           <div className="flex items-center gap-2">
             <span>Canvas:</span>
@@ -316,6 +326,7 @@ export default function Space() {
             <p className="text-gray-400 text-sm">Smart suggestions and chat will appear here.</p>
           </div>
         </div>
+
       </div>
     </div>
   );

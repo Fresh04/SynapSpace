@@ -12,7 +12,7 @@ export default function Login() {
     try {
       const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/login`, form);
       localStorage.setItem('user', JSON.stringify(res.data.user));
-      alert('Login successful!');
+      // alert('Login successful!');
       navigate('/dashboard');
     } catch (err) {
       alert(err.response?.data?.message || 'Login failed');

@@ -57,11 +57,13 @@ router.post('/join', async (req, res) => {
   const { code, userId } = req.body;
   const spaces = createSpaceModel(global.db);
   const found = await spaces.findByCode(code);
+
   if (!found) return res.status(404).json({ message: 'Invalid code' });
 
   await spaces.addUserToSpace(code, userId);
-  res.json({ success: true, joinedSpace: found.name });
+  res.json({ success: true, joinedSpace: found.name, spaceId: found._id });
 });
+
 
 router.get('/myspaces/:userId', async (req, res) => {
   const { userId } = req.params;
